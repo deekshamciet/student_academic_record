@@ -1,55 +1,498 @@
-# Prerequisites
-*.d
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+#define NAME_LEN 100
+#define DEPT_LEN 50
+#define BUFFER_LEN 256
 
-# Linker output
-*.ilk
-*.map
-*.exp
+typedef struct Student {
+    int id;
+    char name[NAME_LEN];
+    char dept[DEPT_LEN];
+    float gpa;
+    struct Student *next;
+} Student;
 
-# Precompiled Headers
-*.gch
-*.pch
+/* Utility prototypes */
+void flush_stdin();
+void read_line(char *buffer, int size);
+char *trim_newline(char *s);
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
+/* Linked list operations */
+Student* create_node(int id, const char *name, const char *dept, float gpa);
+int id_exists(Student *head, int id);
+void insert_at_beginning(Student **head);
+void insert_at_end(Student **head);
+void insert_after_id(Student **head);
+int delete_by_id(Student **head, int id);
+void search_by_id(Student *head, int id);
+void search_by_name(Student *head, const char *name);
+void display_all(Student *head);
+void display_sorted_by_id(Student *head);
+Student* clone_list(Student *head);
+void display_list(Student head); / simple display */
+void reverse_display(Student *head);
+void reverse_display_helper(Student *node);
+float calculate_average_gpa(Student *head);
+int count_students(Student *head);
+void free_list(Student **head);
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+/* Sorting helper (bubble sort by swapping data) */
+void sort_list_by_id(Student *head);
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+/* Main */
+int main() {
+    Student *head = NULL;
+    Student backup = NULL; / cloned backup list */
+    int choice;
+    char buffer[BUFFER_LEN];
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
+    while (1) {
+        printf("\n====== Student Academic Record Management (Singly Linked List) ======\n");
+        printf("1. Insert Student (Beginning)\n");
+        printf("2. Insert Student (End)\n");
+        printf("3. Insert Student (After ID)\n");
+        printf("4. Delete Student by ID\n");
+        printf("5. Search Student by ID\n");
+        printf("6. Search Student by Name\n");
+        printf("7. Display All Students\n");
+        printf("8. Display All Students (Ascending by ID)\n");
+        printf("9. Reverse Display of Records\n");
+        printf("10. Clone List (create backup)\n");
+        printf("11. Display Backup List (if created)\n");
+        printf("12. Calculate Average GPA\n");
+        printf("13. Count Students\n");
+        printf("14. Free All Records and Exit\n");
+        printf("Enter choice: ");
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+            printf("Input error. Exiting.\n");
+            break;
+        }
+        choice = atoi(buffer);
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+        switch (choice) {
+            case 1: insert_at_beginning(&head); break;
+            case 2: insert_at_end(&head); break;
+            case 3: insert_after_id(&head); break;
+            case 4: {
+                printf("Enter Student ID to delete: ");
+                if (fgets(buffer, sizeof(buffer), stdin)) {
+                    int id = atoi(buffer);
+                    if (delete_by_id(&head, id))
+                        printf("Student with ID %d deleted successfully.\n", id);
+                    else
+                        printf("Student with ID %d not found.\n", id);
+                }
+                break;
+            }
+            case 5: {
+                printf("Enter Student ID to search: ");
+                if (fgets(buffer, sizeof(buffer), stdin)) {
+                    int id = atoi(buffer);
+                    search_by_id(head, id);
+                }
+                break;
+            }
+            case 6: {
+                char nameq[NAME_LEN];
+                printf("Enter Name to search (exact match): ");
+                read_line(nameq, NAME_LEN);
+                search_by_name(head, nameq);
+                break;
+            }
+            case 7:
+                display_all(head);
+                break;
+            case 8:
+                display_sorted_by_id(head);
+                break;
+            case 9:
+                if (head == NULL) printf("List is empty.\n");
+                else {
+                    printf("Records in reverse order:\n");
+                    reverse_display(head);
+                }
+                break;
+            case 10:
+                if (backup) {
+                    free_list(&backup);
+                    backup = NULL;
+                }
+                backup = clone_list(head);
+                if (backup)
+                    printf("Backup (clone) created. Backup count = %d\n", count_students(backup));
+                else
+                    printf("Created empty backup (source list empty).\n");
+                break;
+            case 11:
+                if (backup) display_all(backup);
+                else printf("No backup found. Use option 10 to create a backup.\n");
+                break;
+            case 12: {
+                if (head == NULL) {
+                    printf("List empty. Average GPA = 0.00\n");
+                } else {
+                    float avg = calculate_average_gpa(head);
+                    printf("Average GPA of all students: %.2f\n", avg);
+                }
+                break;
+            }
+            case 13:
+                printf("Total students: %d\n", count_students(head));
+                break;
+            case 14:
+                free_list(&head);
+                free_list(&backup);
+                printf("All records freed. Exiting.\n");
+                exit(0);
+                break;
+            default:
+                printf("Invalid choice. Please enter a number from 1 to 14.\n");
+        }
+    }
 
-# debug information files
-*.dwo
+    return 0;
+}
+
+/* ---------- Utility functions ---------- */
+
+void flush_stdin() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
+}
+
+/* Read a full line into buffer (removes trailing newline) */
+void read_line(char *buffer, int size) {
+    if (fgets(buffer, size, stdin) == NULL) {
+        buffer[0] = '\0';
+        return;
+    }
+    trim_newline(buffer);
+}
+
+/* Remove trailing newline and carriage return */
+char *trim_newline(char *s) {
+    size_t len = strlen(s);
+    while (len > 0 && (s[len-1] == '\n' || s[len-1] == '\r')) {
+        s[len-1] = '\0';
+        len--;
+    }
+    return s;
+}
+
+/* ---------- Linked list node creation ---------- */
+Student* create_node(int id, const char *name, const char *dept, float gpa) {
+    Student p = (Student) malloc(sizeof(Student));
+    if (!p) {
+        fprintf(stderr, "Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    p->id = id;
+    strncpy(p->name, name, NAME_LEN-1); p->name[NAME_LEN-1] = '\0';
+    strncpy(p->dept, dept, DEPT_LEN-1); p->dept[DEPT_LEN-1] = '\0';
+    p->gpa = gpa;
+    p->next = NULL;
+    return p;
+}
+
+/* Check if an ID already exists */
+int id_exists(Student *head, int id) {
+    Student *cur = head;
+    while (cur) {
+        if (cur->id == id) return 1;
+        cur = cur->next;
+    }
+    return 0;
+}
+
+/* ---------- Insert operations ---------- */
+void insert_at_beginning(Student **head) {
+    char name[NAME_LEN], dept[DEPT_LEN], buf[BUFFER_LEN];
+    int id;
+    float gpa;
+
+    printf("Enter Student ID: ");
+    read_line(buf, BUFFER_LEN);
+    id = atoi(buf);
+    if (id <= 0) { printf("Invalid ID. Use positive integer.\n"); return; }
+    if (id_exists(*head, id)) { printf("Student ID already exists. Insertion aborted.\n"); return; }
+
+    printf("Enter Name: ");
+    read_line(name, NAME_LEN);
+    if(strlen(name)==0){ printf("Name cannot be empty.\n"); return; }
+
+    printf("Enter Department: ");
+    read_line(dept, DEPT_LEN);
+
+    printf("Enter GPA (0.0 - 10.0): ");
+    read_line(buf, BUFFER_LEN);
+    gpa = atof(buf);
+    if (gpa < 0.0f || gpa > 10.0f) { printf("Invalid GPA. Use range 0.0 - 10.0.\n"); return; }
+
+    Student *node = create_node(id, name, dept, gpa);
+    node->next = *head;
+    *head = node;
+    printf("Inserted student (ID %d) at beginning.\n", id);
+}
+
+void insert_at_end(Student **head) {
+    char name[NAME_LEN], dept[DEPT_LEN], buf[BUFFER_LEN];
+    int id;
+    float gpa;
+
+    printf("Enter Student ID: ");
+    read_line(buf, BUFFER_LEN);
+    id = atoi(buf);
+    if (id <= 0) { printf("Invalid ID. Use positive integer.\n"); return; }
+    if (id_exists(*head, id)) { printf("Student ID already exists. Insertion aborted.\n"); return; }
+
+    printf("Enter Name: ");
+    read_line(name, NAME_LEN);
+    if(strlen(name)==0){ printf("Name cannot be empty.\n"); return; }
+
+    printf("Enter Department: ");
+    read_line(dept, DEPT_LEN);
+
+    printf("Enter GPA (0.0 - 10.0): ");
+    read_line(buf, BUFFER_LEN);
+    gpa = atof(buf);
+    if (gpa < 0.0f || gpa > 10.0f) { printf("Invalid GPA. Use range 0.0 - 10.0.\n"); return; }
+
+    Student *node = create_node(id, name, dept, gpa);
+    if (*head == NULL) {
+        *head = node;
+    } else {
+        Student *cur = *head;
+        while (cur->next) cur = cur->next;
+        cur->next = node;
+    }
+    printf("Inserted student (ID %d) at end.\n", id);
+}
+
+/* Insert after given student ID */
+void insert_after_id(Student **head) {
+    if (*head == NULL) {
+        printf("List empty. Use insert at beginning or end.\n");
+        return;
+    }
+    char buf[BUFFER_LEN], name[NAME_LEN], dept[DEPT_LEN];
+    int after_id;
+    float gpa;
+
+    printf("Enter the ID after which to insert: ");
+    read_line(buf, BUFFER_LEN);
+    after_id = atoi(buf);
+    if (after_id <= 0) { printf("Invalid ID.\n"); return; }
+
+    Student *cur = *head;
+    while (cur && cur->id != after_id) cur = cur->next;
+    if (!cur) { printf("ID %d not found. Insertion aborted.\n", after_id); return; }
+
+    printf("Enter Student ID to insert: ");
+    read_line(buf, BUFFER_LEN);
+    int id = atoi(buf);
+    if (id <= 0) { printf("Invalid ID. Use positive integer.\n"); return; }
+    if (id_exists(*head, id)) { printf("Student ID already exists. Insertion aborted.\n"); return; }
+
+    printf("Enter Name: ");
+    read_line(name, NAME_LEN);
+    if(strlen(name)==0){ printf("Name cannot be empty.\n"); return; }
+
+    printf("Enter Department: ");
+    read_line(dept, DEPT_LEN);
+
+    printf("Enter GPA (0.0 - 10.0): ");
+    read_line(buf, BUFFER_LEN);
+    gpa = atof(buf);
+    if (gpa < 0.0f || gpa > 10.0f) { printf("Invalid GPA. Use range 0.0 - 10.0.\n"); return; }
+
+    Student *node = create_node(id, name, dept, gpa);
+    node->next = cur->next;
+    cur->next = node;
+    printf("Inserted student (ID %d) after ID %d.\n", id, after_id);
+}
+
+/* ---------- Delete ---------- */
+int delete_by_id(Student **head, int id) {
+    if (*head == NULL) return 0;
+    Student *cur = *head, *prev = NULL;
+    while (cur && cur->id != id) {
+        prev = cur;
+        cur = cur->next;
+    }
+    if (!cur) return 0;
+    if (prev == NULL) {
+        *head = cur->next;
+    } else {
+        prev->next = cur->next;
+    }
+    free(cur);
+    return 1;
+}
+
+/* ---------- Search ---------- */
+void search_by_id(Student *head, int id) {
+    Student *cur = head;
+    while (cur) {
+        if (cur->id == id) {
+            printf("Student found:\n");
+            printf("ID: %d\nName: %s\nDept: %s\nGPA: %.2f\n", cur->id, cur->name, cur->dept, cur->gpa);
+            return;
+        }
+        cur = cur->next;
+    }
+    printf("Student with ID %d not found.\n", id);
+}
+
+void search_by_name(Student *head, const char *name) {
+    Student *cur = head;
+    int found = 0;
+    while (cur) {
+        if (strcmp(cur->name, name) == 0) {
+            if (!found) printf("Matching students:\n");
+            printf("ID: %d | Name: %s | Dept: %s | GPA: %.2f\n", cur->id, cur->name, cur->dept, cur->gpa);
+            found = 1;
+        }
+        cur = cur->next;
+    }
+    if (!found) printf("No student with name \"%s\" found.\n", name);
+}
+
+/* ---------- Display ---------- */
+void display_list(Student *head) {
+    Student *cur = head;
+    if (!cur) {
+        printf("No records to display.\n");
+        return;
+    }
+    printf("\n%-8s | %-30s | %-15s | %-5s\n", "ID", "Name", "Department", "GPA");
+    printf("---------------------------------------------------------------------\n");
+    while (cur) {
+        printf("%-8d | %-30s | %-15s | %-5.2f\n", cur->id, cur->name, cur->dept, cur->gpa);
+        cur = cur->next;
+    }
+}
+
+/* Display all students (unsorted) */
+void display_all(Student *head) {
+    printf("\nAll Students:\n");
+    display_list(head);
+}
+
+/* Create a clone and sort it, then display sorted */
+void display_sorted_by_id(Student *head) {
+    if (!head) {
+        printf("List empty.\n");
+        return;
+    }
+    Student *temp = clone_list(head);
+    if (!temp) { printf("Error cloning list.\n"); return; }
+    sort_list_by_id(temp);
+    printf("\nStudents (Ascending by ID):\n");
+    display_list(temp);
+    free_list(&temp);
+}
+
+/* Reverse display using recursion */
+void reverse_display(Student *head) {
+    reverse_display_helper(head);
+}
+
+void reverse_display_helper(Student *node) {
+    if (!node) return;
+    reverse_display_helper(node->next);
+    printf("ID: %d | Name: %s | Dept: %s | GPA: %.2f\n", node->id, node->name, node->dept, node->gpa);
+}
+
+/* ---------- Clone / Backup ---------- */
+Student* clone_list(Student *head) {
+    if (!head) return NULL;
+    Student *new_head = NULL;
+    Student *tail = NULL;
+    Student *cur = head;
+    while (cur) {
+        Student *node = create_node(cur->id, cur->name, cur->dept, cur->gpa);
+        if (!new_head) {
+            new_head = node;
+            tail = node;
+        } else {
+            tail->next = node;
+            tail = node;
+        }
+        cur = cur->next;
+    }
+    return new_head;
+}
+
+/* ---------- Sorting by ID (bubble by data swap) ---------- */
+void sort_list_by_id(Student *head) {
+    if (!head) return;
+    int swapped;
+    do {
+        swapped = 0;
+        Student *p = head;
+        while (p->next) {
+            if (p->id > p->next->id) {
+                /* swap data fields (id, name, dept, gpa) */
+                int tmp_id = p->id;
+                p->id = p->next->id;
+                p->next->id = tmp_id;
+
+                char tmp_name[NAME_LEN], tmp_dept[DEPT_LEN];
+                float tmp_gpa;
+
+                strncpy(tmp_name, p->name, NAME_LEN);
+                strncpy(p->name, p->next->name, NAME_LEN);
+                strncpy(p->next->name, tmp_name, NAME_LEN);
+
+                strncpy(tmp_dept, p->dept, DEPT_LEN);
+                strncpy(p->dept, p->next->dept, DEPT_LEN);
+                strncpy(p->next->dept, tmp_dept, DEPT_LEN);
+
+                tmp_gpa = p->gpa;
+                p->gpa = p->next->gpa;
+                p->next->gpa = tmp_gpa;
+
+                swapped = 1;
+            }
+            p = p->next;
+        }
+    } while (swapped);
+}
+
+/* ---------- Aggregate functions ---------- */
+float calculate_average_gpa(Student *head) {
+    if (!head) return 0.0f;
+    int count = 0;
+    float sum = 0.0f;
+    Student *cur = head;
+    while (cur) {
+        sum += cur->gpa;
+        count++;
+        cur = cur->next;
+    }
+    return (count == 0) ? 0.0f : (sum / count);
+}
+
+int count_students(Student *head) {
+    int c = 0;
+    Student *cur = head;
+    while (cur) {
+        c++;
+        cur = cur->next;
+    }
+    return c;
+}
+
+/* Free list memory */
+void free_list(Student **head) {
+    Student *cur = *head;
+    while (cur) {
+        Student *tmp = cur;
+        cur = cur->next;
+        free(tmp);
+    }
+    *head = NULL;
+}
